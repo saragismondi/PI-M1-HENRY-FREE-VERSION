@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import anthropic
 import openai
 
+from src.schemas import output_json_schema
+
 # Errores de API por proveedor. service.py los atrapa para que la CLI no se caiga.
 API_ERRORS = (anthropic.APIError, openai.APIError)
 
@@ -18,6 +20,14 @@ API_ERRORS = (anthropic.APIError, openai.APIError)
 # lo subimos a 3 para tolerar mejor los límites del plan gratis de Groq.
 SDK_MAX_RETRIES = 3
 TIMEOUT_S = 30
+
+# Por qué salida estructurada y razonamiento acotado (diagnóstico del 07/11/2026):
+# claude-haiku-5-5 y openai/gpt-oss-20b razonan antes de responder, y esos tokens cuentan dentro
+# de MAX_TOKENS. En los evals, las respuestas inválidas usaron exactamente 500 tokens: el razonamiento
+# se comía el tope y el JSON quedaba cortado. En vez de subir el tope:
+#   - pedimos salida estructurada con el schema del contrato (el modelo no puede escribir texto libre);
+#   - Anthropic: thinking desactivado por defecto (ANTHROPIC_THINKING=adaptive lo vuelve a prender);
+#   - Groq: reasoning_effort bajo por defecto (GROQ_REASONING_EFFORT=low|medium|high).
 
 
 @dataclass
@@ -29,6 +39,7 @@ class LLMResult:
     prompt_tokens: int
     completion_tokens: int
     latency_s: float
+    stop_reason: str = "?"  # por qué terminó: "end_turn"/"stop" = solo; "max_tokens"/"length" = lo cortó el tope
 
 
 class LLMProvider:
@@ -39,20 +50,23 @@ class LLMProvider:
         self.model = model
         self.max_tokens = max_tokens
 
-    def complete(self, system: str, user: str) -> LLMResult:
+    def complete(self, system: str, user: str, schema: dict | None = None) -> LLMResult:
+        """schema: JSON schema de la salida estructurada. Por defecto, el contrato del triage."""
         raise NotImplementedError
 
 
 class AnthropicProvider(LLMProvider):
     name = "anthropic"
 
-    def __init__(self, model: str, max_tokens: int):
+    def __init__(self, model: str, max_tokens: int, thinking: str = "disabled"):
         super().__init__(model, max_tokens)
+        self.thinking = thinking
         self.client = anthropic.Anthropic(
             api_key=_require_env("ANTHROPIC_API_KEY"), max_retries=SDK_MAX_RETRIES, timeout=TIMEOUT_S
         )
 
-    def complete(self, system: str, user: str) -> LLMResult:
+    def complete(self, system: str, user: str, schema: dict | None = None) -> LLMResult:
+        schema = schema or output_json_schema()
         start = time.perf_counter()
         # Nota: en anthropic 2.6.0, messages.create() no acepta `temperature` (verificado en la firma del SDK).
         response = self.client.messages.create(
@@ -60,6 +74,8 @@ class AnthropicProvider(LLMProvider):
             max_tokens=self.max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],
+            thinking={"type": self.thinking},
+            output_config={"format": {"type": "json_schema", "schema": schema}},
         )
         latency = time.perf_counter() - start
         text = "".join(block.text for block in response.content if block.type == "text")
@@ -70,6 +86,7 @@ class AnthropicProvider(LLMProvider):
             prompt_tokens=response.usage.input_tokens,
             completion_tokens=response.usage.output_tokens,
             latency_s=latency,
+            stop_reason=str(response.stop_reason),
         )
 
 
@@ -78,9 +95,10 @@ class GroqProvider(LLMProvider):
     name = "groq"
     BASE_URL = "https://api.groq.com/openai/v1"
 
-    def __init__(self, model: str, max_tokens: int, temperature: float):
+    def __init__(self, model: str, max_tokens: int, temperature: float, reasoning_effort: str = "low"):
         super().__init__(model, max_tokens)
         self.temperature = temperature
+        self.reasoning_effort = reasoning_effort
         self.client = openai.OpenAI(
             api_key=_require_env("GROQ_API_KEY"),
             base_url=self.BASE_URL,
@@ -88,12 +106,16 @@ class GroqProvider(LLMProvider):
             timeout=TIMEOUT_S,
         )
 
-    def complete(self, system: str, user: str) -> LLMResult:
+    def complete(self, system: str, user: str, schema: dict | None = None) -> LLMResult:
+        schema = schema or output_json_schema()
         start = time.perf_counter()
         response = self.client.chat.completions.create(
             model=self.model,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
+            reasoning_effort=self.reasoning_effort,
+            response_format={"type": "json_schema", "json_schema": {
+                "name": "respuesta", "schema": schema, "strict": True}},
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -107,6 +129,7 @@ class GroqProvider(LLMProvider):
             prompt_tokens=response.usage.prompt_tokens,
             completion_tokens=response.usage.completion_tokens,
             latency_s=latency,
+            stop_reason=str(response.choices[0].finish_reason),
         )
 
 
@@ -117,10 +140,12 @@ def get_provider(name: str) -> LLMProvider:
     """Crea el proveedor pedido leyendo modelo y parámetros del entorno (.env)."""
     max_tokens = int(os.getenv("MAX_TOKENS", "500"))
     if name == "anthropic":
-        return AnthropicProvider(os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), max_tokens)
+        return AnthropicProvider(os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), max_tokens,
+                                 os.getenv("ANTHROPIC_THINKING", "disabled"))
     if name == "groq":
         temperature = float(os.getenv("TEMPERATURE", "0"))
-        return GroqProvider(os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"), max_tokens, temperature)
+        return GroqProvider(os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), max_tokens, temperature,
+                            os.getenv("GROQ_REASONING_EFFORT", "low"))
     raise ValueError(f"Proveedor desconocido: {name!r}. Opciones: {', '.join(PROVIDERS)}")
 
 

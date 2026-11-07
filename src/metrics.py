@@ -21,6 +21,7 @@ DEFAULT_METRICS_PATH = Path(__file__).resolve().parent.parent / "data" / "metric
 PRICES_PER_MTOK = {
     "claude-haiku-5-5": (0.10, 0.50),
     "openai/gpt-oss-20b": (0.0, 0.0),
+    "openai/gpt-oss-120b": (0.0, 0.0),  # en uso desde el 07/11/2026: el cupo diario de 20b se agotó en los evals
 }
 
 
@@ -30,6 +31,11 @@ def estimate_cost_usd(model: str, prompt_tokens: int, completion_tokens: int) ->
         return None
     price_in, price_out = PRICES_PER_MTOK[model]
     return round(prompt_tokens / 1_000_000 * price_in + completion_tokens / 1_000_000 * price_out, 8)
+
+
+def metrics_path() -> Path:
+    """Ruta del log. METRICS_PATH permite apuntar a otro archivo (por ejemplo, en pruebas)."""
+    return Path(os.getenv("METRICS_PATH", DEFAULT_METRICS_PATH))
 
 
 def log_request(result: LLMResult, prompt_version: str, attempt: int, valid: bool, category: str | None) -> dict:
@@ -45,9 +51,10 @@ def log_request(result: LLMResult, prompt_version: str, attempt: int, valid: boo
         "completion_tokens": result.completion_tokens,
         "total_tokens": result.prompt_tokens + result.completion_tokens,
         "latency_s": round(result.latency_s, 3),
+        "stop_reason": result.stop_reason,
         "cost_usd": estimate_cost_usd(result.model, result.prompt_tokens, result.completion_tokens),
     }
-    path = Path(os.getenv("METRICS_PATH", DEFAULT_METRICS_PATH))
+    path = metrics_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:  # "a" = append: nunca se borra lo anterior
         f.write(json.dumps(record, ensure_ascii=False) + "\n")

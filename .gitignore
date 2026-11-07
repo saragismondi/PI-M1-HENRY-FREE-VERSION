@@ -19,3 +19,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Caché local de respuestas (se regenera sola)
+data/cache.jsonl

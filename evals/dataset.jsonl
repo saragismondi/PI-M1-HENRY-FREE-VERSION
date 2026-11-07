@@ -1,0 +1,40 @@
+{"id": "bil-01", "query": "Me llegó la factura de octubre con un monto mayor al del plan que tengo contratado, ¿por qué?", "expected_category": "billing", "type": "claro"}
+{"id": "bil-02", "query": "necesito la factura A a nombre de mi empresa, me la hicieron como consumidor final", "expected_category": "billing", "type": "claro"}
+{"id": "bil-03", "query": "Di de baja el plan premium el mes pasado y este mes me lo volvieron a cobrar.", "expected_category": "billing", "type": "claro"}
+{"id": "bil-04", "query": "¿Cómo cambio la tarjeta de crédito con la que se debita la suscripción? La anterior se venció.", "expected_category": "billing", "type": "claro"}
+{"id": "bil-05", "query": "el debito automatico me rebotó y ahora dice que tengo la cuenta suspendida por falta de pago", "expected_category": "billing", "type": "claro"}
+{"id": "bil-06", "query": "Me cobraron en dólares y yo había contratado en pesos argentinos.", "expected_category": "billing", "type": "claro"}
+{"id": "bil-07", "query": "hola, donde descargo las facturas de los ultimos 6 meses? las pide el contador", "expected_category": "billing", "type": "informal"}
+{"id": "bil-08", "query": "me sacaron plata de mas", "expected_category": "billing", "type": "ambiguo"}
+{"id": "bil-09", "query": "Quiero pasar al plan anual pero ya pagué este mes, ¿me descuentan lo que ya aboné?", "expected_category": "billing", "type": "ambiguo"}
+{"id": "bil-10", "query": "q onda con el cobro d esta semana?? no autorize nada", "expected_category": "billing", "type": "informal"}
+{"id": "tec-01", "query": "Desde la actualización de anoche el módulo de stock no guarda los cambios, aparece 'Error al procesar la solicitud'.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-02", "query": "La exportación a Excel del libro de ventas sale vacía aunque tengo ventas cargadas en el período.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-03", "query": "No se está sincronizando el stock con mi tienda de Tiendanube, vendo productos que ya no tengo.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-04", "query": "El sistema está lentísimo hoy, cada pantalla tarda como un minuto en cargar.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-05", "query": "No me deja emitir facturas electrónicas, AFIP devuelve un error de certificado.", "expected_category": "technical", "type": "ambiguo"}
+{"id": "tec-06", "query": "La impresora fiscal dejó de imprimir los tickets desde que cambié de computadora.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-07", "query": "La API de Nubbix me devuelve 401 aunque uso el token que generé recién en el panel.", "expected_category": "technical", "type": "claro"}
+{"id": "tec-08", "query": "no anda nada, pantalla en blanco", "expected_category": "technical", "type": "ambiguo"}
+{"id": "tec-09", "query": "los reportes de ventas muestran numeros distintos a los del cierre de caja, algo esta mal calculado", "expected_category": "technical", "type": "ambiguo"}
+{"id": "tec-10", "query": "se me borraron los clientes q tenia cargados ayer?? no los encuentro en ningun lado", "expected_category": "technical", "type": "informal"}
+{"id": "acc-01", "query": "Olvidé mi contraseña y el mail de recuperación nunca me llega.", "expected_category": "account", "type": "claro"}
+{"id": "acc-02", "query": "Necesito darle permisos de administrador a mi socio, ¿cómo lo hago?", "expected_category": "account", "type": "claro"}
+{"id": "acc-03", "query": "Quiero cambiar el nombre de la empresa y el CUIT que figuran en la cuenta.", "expected_category": "account", "type": "claro"}
+{"id": "acc-04", "query": "Me aparece 'usuario bloqueado por demasiados intentos', ¿cómo lo desbloqueo?", "expected_category": "account", "type": "claro"}
+{"id": "acc-05", "query": "¿Puedo tener dos sucursales en la misma cuenta con usuarios separados para cada una?", "expected_category": "account", "type": "ambiguo"}
+{"id": "acc-06", "query": "Quiero activar la verificación en dos pasos para todos los usuarios de mi equipo.", "expected_category": "account", "type": "claro"}
+{"id": "acc-07", "query": "Quiero dar de baja mi cuenta y que borren todos mis datos.", "expected_category": "account", "type": "ambiguo"}
+{"id": "acc-08", "query": "el vendedor nuevo puede ver los costos de los productos y no quiero que los vea", "expected_category": "account", "type": "informal"}
+{"id": "acc-09", "query": "no puedo entrar", "expected_category": "account", "type": "ambiguo"}
+{"id": "acc-10", "query": "Cambié de celular y perdí la app de autenticación, ahora no puedo iniciar sesión.", "expected_category": "account", "type": "claro"}
+{"id": "oth-01", "query": "¿Nubbix funciona también en Uruguay? Estamos por abrir una sucursal allá.", "expected_category": "other", "type": "claro"}
+{"id": "oth-02", "query": "¿Tienen un plan para cooperativas o asociaciones sin fines de lucro?", "expected_category": "other", "type": "claro"}
+{"id": "oth-03", "query": "Estaría bueno que el sistema tenga modo oscuro, lo uso todo el día.", "expected_category": "other", "type": "claro"}
+{"id": "oth-04", "query": "¿Cuánto sale el plan profesional si somos 15 usuarios?", "expected_category": "other", "type": "ambiguo"}
+{"id": "oth-05", "query": "Quería felicitar a Martina de soporte, me resolvió todo súper rápido la semana pasada.", "expected_category": "other", "type": "claro"}
+{"id": "oth-06", "query": "¿Se puede integrar Nubbix con un sistema de turnos para peluquerías?", "expected_category": "other", "type": "ambiguo"}
+{"id": "oth-07", "query": "Soy contador y tengo varios clientes que usan Nubbix, ¿hay algún programa de partners?", "expected_category": "other", "type": "claro"}
+{"id": "oth-08", "query": "hola", "expected_category": "other", "type": "ambiguo"}
+{"id": "oth-09", "query": "¿Dónde puedo encontrar tutoriales en video para aprender a usar el sistema?", "expected_category": "other", "type": "claro"}
+{"id": "oth-10", "query": "buenas! estamos evaluando cambiarnos de sistema, me pasan info de q incluye cada plan?", "expected_category": "other", "type": "informal"}
