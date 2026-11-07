@@ -146,6 +146,7 @@ consulta
 | `src/metrics.py` | Log de métricas y cálculo de costo. |
 | `evals/runner.py` | Evals sobre el dataset. |
 | `evals/adversarial_runner.py` | Evals adversariales (bonus). |
+| `tests/test_guardrails.py` | Tests de los guardrails por patrones, sin LLM. |
 
 ## Context engineering: técnica elegida
 
@@ -368,9 +369,20 @@ $ python -m src.main "no me llega el mail para recuperar la contraseña" --provi
 
   - Mejora propuesta: que el runner acepte `--moderation`, como la CLI, y que muestre antes de empezar
     qué proveedores va a llamar y si alguno es pago.
-- **No hay tests automáticos** (por ejemplo, con pytest) para los guardrails, la caché y el parseo. Hoy
-  se verifican con los evals y con pruebas manuales; los patrones de los guardrails se podrían probar
-  sin llamar a ningún LLM.
+- **Tests de los guardrails por patrones: hechos.** `tests/test_guardrails.py` tiene 13 tests que no
+  llaman a ningún LLM, así que no tienen costo. Usan datos reales del proyecto:
+  - los 40 tickets del dataset no deben bloquearse (control de falsos positivos);
+  - adv-01 a adv-06 deben bloquearse con el patrón documentado, y adv-07 a adv-10 no (los frena el moderador);
+  - las 40 respuestas reales de la corrida final de Groq v1 no deben marcarse.
+
+  ```bash
+  python tests/test_guardrails.py
+  ```
+
+  Para comprobar que los tests detectan errores, se quitaron dos patrones a propósito (`cambio_de_rol`
+  y `plazo`) y fallaron 3 de los 13 tests.
+- **Falta testear** la caché, el parseo del JSON y los reintentos sin llamar al LLM. Se podría hacer con
+  un proveedor falso que devuelva respuestas armadas a mano.
 
 ## Uso de IA en el desarrollo
 
