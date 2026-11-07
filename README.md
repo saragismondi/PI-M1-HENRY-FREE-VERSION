@@ -24,10 +24,12 @@ reintenta hasta 3 veces y se le pasa al modelo el error concreto (`src/service.p
 Requisitos: Python 3.14 (es la versión con la que se probó) y al menos una clave de API.
 
 ```bash
-git clone <url-del-repo>
+git clone https://github.com/saragismondi/pi-m1-ia-engineer.git
 cd pi-m1-ia-engineer
 python -m venv .venv
 ```
+
+En Windows, si `python` responde "Python was not found", usá el lanzador `py`: `py -m venv .venv`.
 
 Activar el entorno:
 
@@ -347,6 +349,28 @@ $ python -m src.main "no me llega el mail para recuperar la contraseña" --provi
 - **`confidence`** es la confianza que informa el modelo, no una probabilidad calibrada.
 - **Dataset:** 40 casos etiquetados a mano. Es chico, y los errores se concentran en los casos ambiguos.
 - **Cupo diario de Groq:** con el plan gratis, una corrida completa de evals gasta unos 109.000 tokens, más de la mitad del cupo del día.
+
+## Mejoras pendientes en el testing
+
+- **El runner gasta en Anthropic aunque se pruebe con Groq.** Por defecto el moderador corre en Haiku
+  (`MODERATION=both`, `MODERATOR_PROVIDER=anthropic`).
+  - Qué pasó: en la prueba desde un clon limpio (07/11/2026) la idea era usar solo comandos gratis.
+    Pero `python evals/runner.py --provider groq --prompt v1 --limit 2` llamó al moderador y gastó
+    0,000322 USD en Anthropic.
+  - Cómo probar gratis hoy: apagar el moderador con la variable de entorno.
+
+    ```bash
+    # macOS / Linux
+    MODERATION=off python evals/runner.py --provider groq --limit 2
+    # Windows (PowerShell)
+    $env:MODERATION="off"; python evals/runner.py --provider groq --limit 2
+    ```
+
+  - Mejora propuesta: que el runner acepte `--moderation`, como la CLI, y que muestre antes de empezar
+    qué proveedores va a llamar y si alguno es pago.
+- **No hay tests automáticos** (por ejemplo, con pytest) para los guardrails, la caché y el parseo. Hoy
+  se verifican con los evals y con pruebas manuales; los patrones de los guardrails se podrían probar
+  sin llamar a ningún LLM.
 
 ## Uso de IA en el desarrollo
 
