@@ -281,8 +281,21 @@ los patrones no reconocían:
 
 ## Métricas y costo
 
-Cada llamada a un LLM, incluidas las del moderador, agrega una línea a `data/metrics.jsonl`.
+Cada ejecución agrega al menos una línea a `data/metrics.jsonl`. El campo `event` dice de qué tipo es:
+
+| `event` | Cuándo | Tokens y costo |
+|---|---|---|
+| `llm` | Cada llamada a un LLM, incluidas las del moderador y los reintentos. | Los reales. |
+| `cache` | La respuesta salió de la caché. | 0: no hubo llamada. |
+| `bloqueado_patron` | Un patrón de injection bloqueó la consulta. | 0: no hubo llamada. |
+| `bloqueado_moderador` | El moderador bloqueó la consulta. Su llamada queda aparte, como `llm`. | 0 en esta línea. |
+
+En las líneas sin llamada, la latencia es la del servicio completo. Las líneas anteriores a este campo
+(hasta el 07/11/2026 a las 23:10 UTC) son todas llamadas a un LLM y no tienen `event`. Las consultas
+vacías o demasiado largas no generan línea: se rechazan con un error antes de procesarlas.
+
 Cada línea tiene:
+- tipo de evento
 - timestamp
 - proveedor y modelo
 - versión de prompt

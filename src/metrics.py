@@ -38,9 +38,44 @@ def metrics_path() -> Path:
     return Path(os.getenv("METRICS_PATH", DEFAULT_METRICS_PATH))
 
 
+def _append(record: dict) -> dict:
+    path = metrics_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:  # "a" = append: nunca se borra lo anterior
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return record
+
+
+def log_event(event: str, provider: str, model: str | None, prompt_version: str,
+              category: str | None, latency_s: float) -> dict:
+    """Ejecución que NO llamó al LLM: respuesta desde la caché o consulta bloqueada.
+
+    La consigna pide que cada ejecución registre tokens, latencia y costo. Acá los tokens y el
+    costo son 0 porque no hubo llamada; la latencia es la del servicio completo.
+    event: "cache" | "bloqueado_patron" | "bloqueado_moderador".
+    """
+    return _append({
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "event": event,
+        "provider": provider,
+        "model": model,
+        "prompt_version": prompt_version,
+        "attempt": 0,
+        "valid_contract": True,
+        "category": category,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "latency_s": round(latency_s, 3),
+        "stop_reason": None,
+        "cost_usd": 0.0,
+    })
+
+
 def log_request(result: LLMResult, prompt_version: str, attempt: int, valid: bool, category: str | None) -> dict:
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "event": "llm",
         "provider": result.provider,
         "model": result.model,
         "prompt_version": prompt_version,
@@ -54,8 +89,4 @@ def log_request(result: LLMResult, prompt_version: str, attempt: int, valid: boo
         "stop_reason": result.stop_reason,
         "cost_usd": estimate_cost_usd(result.model, result.prompt_tokens, result.completion_tokens),
     }
-    path = metrics_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:  # "a" = append: nunca se borra lo anterior
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return record
+    return _append(record)

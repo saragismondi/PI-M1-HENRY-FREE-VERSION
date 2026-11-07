@@ -8,10 +8,11 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 import os
+import time
 
 from src import cache
 from src.guardrails import SAFE_ANSWER, check_input, check_output
-from src.metrics import log_request
+from src.metrics import log_event, log_request
 from src.moderation import moderate
 from src.prompts import load_prompt
 from src.providers import API_ERRORS, get_provider
@@ -104,6 +105,7 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
     para medir su efecto en los evals adversariales.
     moderation: off | output | both (por defecto, la variable MODERATION del .env, o "both").
     """
+    start = time.perf_counter()  # latencia del servicio, para las ejecuciones que no llaman al LLM
     moderation = moderation or os.getenv("MODERATION", "both")
     if moderation not in MODERATION_MODES:
         raise TriageError(f"MODERATION inválido: {moderation!r}. Opciones: {', '.join(MODERATION_MODES)}")
@@ -111,6 +113,8 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
     if error:
         raise TriageError(error)
     if injection and input_guardrail:
+        # Todavía no se creó el proveedor (no hace falta para bloquear): el modelo queda sin dato.
+        log_event("bloqueado_patron", provider_name, None, prompt_version, "other", time.perf_counter() - start)
         return TriageResult(response=blocked_response(injection), input_flag=injection)
 
     try:
@@ -124,13 +128,20 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
 
     key = cache.make_key(provider.name, provider.model, prompt.version, query)
     if use_cache and (hit := cache.get(key)):
-        return TriageResult(response=TriageResponse.model_validate(hit), cached=True)
+        response = TriageResponse.model_validate(hit)
+        log_event("cache", provider.name, provider.model, prompt.version, response.category,
+                  time.perf_counter() - start)
+        return TriageResult(response=response, cached=True)
 
     # Capa 2 de entrada: el moderador LLM, para ataques que los patrones no reconocen.
     if input_guardrail and moderation == "both":
         verdict = moderate(query, "entrada", moderator)
         if verdict.flagged:
             reason = "moderador:" + ",".join(verdict.reasons)
+            # La llamada al moderador ya quedó registrada (con sus tokens); esta línea registra
+            # que la ejecución terminó bloqueada, sin llamar al modelo que responde.
+            log_event("bloqueado_moderador", provider.name, provider.model, prompt.version, "other",
+                      time.perf_counter() - start)
             return TriageResult(response=blocked_response(reason), input_flag=reason)
 
     response = call_llm(provider, prompt, query)
