@@ -1,0 +1,5 @@
+openai==3.46.0
+anthropic==2.6.0
+pydantic==2.14.3
+PyYAML==6.0.3
+python-dotenv==1.2.4

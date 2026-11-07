@@ -1,0 +1,21 @@
+# Material de referencia local (repos de compañeros, notas). NO se sube.
+contexto/
+PLAN.md
+
+# Secretos y entorno local
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
