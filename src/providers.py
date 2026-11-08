@@ -198,12 +198,13 @@ PAID_PROVIDERS = {"anthropic"}
 FREE_PROVIDERS = tuple(p for p in PROVIDERS if p not in PAID_PROVIDERS)
 
 
-def get_provider(name: str, model: str | None = None) -> LLMProvider:
+def get_provider(name: str, model: str | None = None, max_tokens: int | None = None) -> LLMProvider:
     """Crea el proveedor pedido leyendo modelo y parámetros del entorno (.env).
 
     model: pisa el modelo del .env (lo usa la prueba de humo para recorrer varios modelos).
+    max_tokens: pisa MAX_TOKENS (lo usa el moderador, con MODERATION_MAX_TOKENS).
     """
-    max_tokens = int(os.getenv("MAX_TOKENS", "500"))
+    max_tokens = max_tokens or int(os.getenv("MAX_TOKENS", "500"))
     if name == "anthropic":
         return AnthropicProvider(model or os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), max_tokens,
                                  os.getenv("ANTHROPIC_THINKING", "disabled"))

@@ -34,6 +34,16 @@ def moderator_provider() -> str:
     return os.getenv("MODERATOR_PROVIDER", DEFAULT_MODERATOR)
 
 
+def moderation_max_tokens() -> int | None:
+    """Tope de tokens del moderador. Vacío = el mismo MAX_TOKENS que la generación.
+
+    Motivo (fase 4, 07/11/2026): con Bolt moderando y 500 tokens, 22 de 73 llamadas del moderador
+    terminaron con stop=length: el razonamiento se comió el tope y no quedó lugar para el JSON.
+    """
+    value = os.getenv("MODERATION_MAX_TOKENS", "").strip()
+    return int(value) if value else None
+
+
 def resolve_moderation(moderation: str | None) -> str:
     """El modo pedido, o MODERATION del .env, o "both"."""
     return moderation or os.getenv("MODERATION", "both")
@@ -152,7 +162,8 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
         provider = get_provider(provider_name)
         # El moderador corre en otro proveedor (por defecto NVIDIA): en el proyecto base, con el
         # moderador también en Groq, se agotó el cupo diario del plan gratis de Groq.
-        moderator = get_provider(moderator_provider()) if moderation != "off" else None
+        moderator = (get_provider(moderator_provider(), max_tokens=moderation_max_tokens())
+                     if moderation != "off" else None)
         prompt = load_prompt(prompt_version)
     except ValueError as e:  # proveedor o prompt inexistente, o falta una clave
         raise TriageError(str(e)) from e

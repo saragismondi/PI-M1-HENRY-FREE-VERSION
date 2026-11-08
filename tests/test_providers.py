@@ -222,6 +222,15 @@ def test_env_example_no_tiene_anthropic():
     assert "MODERATOR_PROVIDER=nvidia" in text
 
 
+def test_moderador_usa_su_propio_tope_de_tokens():
+    with env(NVIDIA_API_KEY="clave-falsa", MAX_TOKENS="500", MODERATION_MAX_TOKENS="1000"):
+        assert service.moderation_max_tokens() == 1000
+        assert get_provider("nvidia", max_tokens=service.moderation_max_tokens()).max_tokens == 1000
+        assert get_provider("nvidia").max_tokens == 500  # la generación no cambia
+    with env(MODERATION_MAX_TOKENS=""):
+        assert service.moderation_max_tokens() is None
+
+
 # --- Aviso previo de los runners ---------------------------------------------------
 
 def test_aviso_marca_el_moderador_pago():
