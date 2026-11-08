@@ -77,12 +77,45 @@ de Sara. **Visto en la página oficial, no probado con una llamada todavía.**
   nombra a su operador). Lo que se mande lo procesan terceros: no usar datos reales de clientes.
 - **Sin verificar:** que sus probabilidades estén calibradas. Se mide en la fase 5.
 
+## 4b. Resultados de la fase 1 (07/11/2026, verificado)
+
+Comando: `python scripts/smoke_openai_compatible.py --provider nvidia --models ...` con `MAX_TOKENS=500`,
+`NVIDIA_REASONING_EFFORT=low`, `NVIDIA_STRUCTURED=json_schema`, prompt v1, ticket
+"me cobraron dos veces la suscripción de este mes". Fuente: las 6 últimas líneas de `data/metrics.jsonl`.
+
+- `--list-models` respondió: **84 modelos** en `https://integrate.api.nvidia.com/v1`. Los 6 IDs probados existen.
+- **Ningún 429**: no se llegó al límite.
+
+| Modelo | Resultado | Tokens (entrada+salida) | Latencia | stop |
+|---|---|---|---|---|
+| `nvidia/nemotron-3.5-bolt-e4b` | **OK**: billing, confidence 0,98 | 361+302 | 3,85 s | stop |
+| `nvidia/nemotron-3.5-lightning-30b-a3b` | Contrato inválido: texto vacío | 374+500 | 3,45 s | length |
+| `mistralai/mistral-large-4-1t-a52b` | Contrato inválido: texto vacío | 501+500 | 17,73 s | length |
+| `openai/gpt-oss-20b` | Timeout (30 s, más los 3 reintentos del SDK) | — | — | — |
+| `deepseek-ai/deepseek-v4.1-flash` | Timeout | — | — | — |
+| `z-ai/glm-5.3-flash` | Timeout | — | — | — |
+
+**Diagnóstico de los textos vacíos (1 llamada extra a Lightning, fuera de las métricas):** el `usage` devolvió
+`reasoning_tokens=500`, y el mensaje solo trae `reasoning_content` (1.835 caracteres, en inglés), sin `content`.
+O sea: **`reasoning_effort=low` no limitó el razonamiento** en ese modelo y se comió todo `MAX_TOKENS`. Es el mismo
+problema que tuvo el proyecto base. En Mistral se asume la misma causa (mismo patrón: 500 tokens, `length`);
+no se verificó con una llamada aparte.
+
+**Timeouts:** no se sabe si son por carga del servicio o por el modelo. `TIMEOUT_S=30` en `src/providers.py`.
+
+### Decisiones pendientes (de Sara)
+
+1. Seguir con `nemotron-3.5-bolt-e4b` como modelo de NVIDIA para la fase 3.
+2. Para Lightning y Mistral: probar apagar el razonamiento con un parámetro propio del modelo (sin verificar
+   cuál acepta cada uno) o subir `MAX_TOKENS` (en el proyecto base se descartó subirlo).
+3. Para los timeouts: reintentar más tarde, o subir `TIMEOUT_S`.
+
 ## 4. Fases
 
 | Fase | Qué | Llamadas | Estado |
 |---|---|---|---|
-| 0 | Clave de NVIDIA (la crea Sara en build.nvidia.com, desde Mistral Large 4) y, opcional, de Jev | 0 | **En curso (Sara)** |
-| 1 | Prueba de humo: 1 llamada por modelo candidato (`scripts/smoke_openai_compatible.py`) | ~7 | Script listo |
+| 0 | Clave de NVIDIA (la crea Sara en build.nvidia.com, desde Mistral Large 4) y, opcional, de Jev | 0 | NVIDIA: **hecho**. Jev: pendiente |
+| 1 | Prueba de humo: 1 llamada por modelo candidato (`scripts/smoke_openai_compatible.py`) | 6 (+1 diagnóstico) | **Hecho**: 1 de 6 OK (ver 4b) |
 | 2 | Proveedor genérico OpenAI-compatible (Groq y NVIDIA), `--moderation` en los runners, aviso de proveedores pagos, registro de errores de API (`error_api` con `status_code`) | 0 | **Hecho** (tests sin red) |
 | 3 | Evals con los 2 mejores modelos, v1, `--moderation off`, `--sleep 1.6` | ~80 | Pendiente |
 | 4 | Moderador en NVIDIA en lugar de Haiku; evals normales y adversariales | ~200 | Pendiente |
