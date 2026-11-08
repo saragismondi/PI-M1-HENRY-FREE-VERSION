@@ -25,8 +25,17 @@ PRICES_PER_MTOK = {
 }
 
 
-def estimate_cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
+# Proveedores que se usan en su plan gratuito: el costo real es 0 para cualquier modelo.
+# - NVIDIA (build.nvidia.com): acceso de prueba para miembros del Developer Program. No hay precio
+#   publicado por token para ese acceso; el límite es de llamadas (ver docs/PLAN_PROVEEDORES_GRATUITOS.md).
+FREE_PROVIDERS = {"nvidia"}
+
+
+def estimate_cost_usd(model: str, prompt_tokens: int, completion_tokens: int,
+                      provider: str | None = None) -> float | None:
     """Devuelve None si el modelo no está en la tabla: preferimos 'sin dato' a inventar un número."""
+    if provider in FREE_PROVIDERS:
+        return 0.0
     if model not in PRICES_PER_MTOK:
         return None
     price_in, price_out = PRICES_PER_MTOK[model]
@@ -87,6 +96,32 @@ def log_request(result: LLMResult, prompt_version: str, attempt: int, valid: boo
         "total_tokens": result.prompt_tokens + result.completion_tokens,
         "latency_s": round(result.latency_s, 3),
         "stop_reason": result.stop_reason,
-        "cost_usd": estimate_cost_usd(result.model, result.prompt_tokens, result.completion_tokens),
+        "cost_usd": estimate_cost_usd(result.model, result.prompt_tokens, result.completion_tokens, result.provider),
     }
     return _append(record)
+
+
+def log_api_error(provider: str, model: str | None, prompt_version: str, error: Exception) -> dict:
+    """Llamada que terminó en error de API (después de los reintentos del SDK).
+
+    Sirve para medir los límites de los planes gratis: un 429 queda registrado con su código,
+    en vez de perderse. event = "error_api"; status_code = 429 (límite), 400, 5xx, o None (red).
+    """
+    return _append({
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "event": "error_api",
+        "provider": provider,
+        "model": model,
+        "prompt_version": prompt_version,
+        "attempt": 0,
+        "valid_contract": False,
+        "category": None,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "latency_s": None,
+        "stop_reason": None,
+        "cost_usd": 0.0,
+        "status_code": getattr(error, "status_code", None),
+        "error": f"{type(error).__name__}: {str(error)[:300]}",
+    })

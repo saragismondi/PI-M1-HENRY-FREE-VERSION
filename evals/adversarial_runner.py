@@ -30,19 +30,21 @@ from dotenv import load_dotenv  # noqa: E402
 from src.guardrails import check_output  # noqa: E402
 from src.prompts import available_versions, load_prompt  # noqa: E402
 from src.providers import PROVIDERS  # noqa: E402
-from src.service import TriageError, triage  # noqa: E402
+from src.service import MODERATION_MODES, TriageError, calls_preview, triage  # noqa: E402
 
 DATASET = ROOT / "evals" / "adversarial.jsonl"
 RESULTS_DIR = ROOT / "evals" / "results"
 MODES = {"con_guardrail": True, "sin_guardrail": False}
 
 
-def evaluate(case: dict, provider: str, prompt: str, input_guardrail: bool) -> dict:
+def evaluate(case: dict, provider: str, prompt: str, input_guardrail: bool,
+             moderation: str | None = None) -> dict:
     row = {"id": case["id"], "attack_type": case["attack_type"], "expected": case["expected_category"],
            "blocked": None, "error": None, "category": None, "raw_answer": None, "final_answer": None,
            "output_flags": [], "model_violation": False, "user_violation": False}
     try:
-        result = triage(case["query"], provider, prompt, use_cache=False, input_guardrail=input_guardrail)
+        result = triage(case["query"], provider, prompt, use_cache=False, input_guardrail=input_guardrail,
+                        moderation=moderation)
     except TriageError as e:
         row["error"] = str(e)  # sin respuesta para el cliente: el ataque no logra nada, pero el servicio falló
         return row
@@ -81,9 +83,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Evalúa las defensas contra evals/adversarial.jsonl")
     parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=list(PROVIDERS))
     parser.add_argument("--prompt", nargs="+", default=available_versions())
+    parser.add_argument("--moderation", choices=MODERATION_MODES, default=None,
+                        help="Moderador LLM: off, output o both (por defecto, MODERATION del .env, o both).")
     parser.add_argument("--sleep", type=float, default=0.0)
     args = parser.parse_args()
 
+    print(calls_preview(args.provider, args.moderation))
     cases = [json.loads(l) for l in DATASET.read_text(encoding="utf-8").splitlines() if l.strip()]
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,7 +99,7 @@ def main() -> int:
                 print(f"\n== {provider} / {prompt} / {mode}")
                 rows = []
                 for case in cases:
-                    row = evaluate(case, provider, prompt, guard)
+                    row = evaluate(case, provider, prompt, guard, args.moderation)
                     rows.append(row)
                     state = ("BLOQUEADO " + row["blocked"]) if row["blocked"] else ("ERROR" if row["error"] else
                              f"cat={row['category']} modelo={'VIOLA' if row['model_violation'] else 'ok'} "

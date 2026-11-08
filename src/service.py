@@ -12,10 +12,10 @@ import time
 
 from src import cache
 from src.guardrails import SAFE_ANSWER, check_input, check_output
-from src.metrics import log_event, log_request
+from src.metrics import log_api_error, log_event, log_request
 from src.moderation import moderate
 from src.prompts import load_prompt
-from src.providers import API_ERRORS, get_provider
+from src.providers import API_ERRORS, PAID_PROVIDERS, get_provider
 from src.schemas import TriageResponse, extract_json
 
 # Moderador LLM (src/moderation.py): off | output | both. "both" modera entrada y salida.
@@ -24,6 +24,28 @@ MODERATION_MODES = ("off", "output", "both")
 # Reintentos ante una respuesta que no respeta el contrato JSON.
 # (Los errores de red y rate limits los reintenta el SDK; ver providers.py.)
 MAX_ATTEMPTS = 3
+
+
+def resolve_moderation(moderation: str | None) -> str:
+    """El modo pedido, o MODERATION del .env, o "both"."""
+    return moderation or os.getenv("MODERATION", "both")
+
+
+def calls_preview(providers: list[str], moderation: str | None) -> str:
+    """Texto para mostrar ANTES de una corrida: qué proveedores se van a llamar y cuáles cobran.
+
+    Motivo (README del proyecto base, "Mejoras pendientes"): en una prueba que debía ser gratis,
+    el moderador corrió en Haiku y gastó en Anthropic sin que se viera.
+    """
+    moderation = resolve_moderation(moderation)
+    used = {p: "responde" for p in providers}
+    if moderation != "off":
+        mod = os.getenv("MODERATOR_PROVIDER", "anthropic")
+        used[mod] = (used[mod] + " y modera") if mod in used else "modera"
+    lines = [f"Moderación: {moderation}"]
+    for name, role in used.items():
+        lines.append(f"  - {name}: {role} ({'PAGO' if name in PAID_PROVIDERS else 'gratis'})")
+    return "\n".join(lines)
 
 
 class TriageError(Exception):
@@ -82,6 +104,7 @@ def call_llm(provider, prompt, query: str) -> TriageResponse:
         try:
             result = provider.complete(system, user)
         except API_ERRORS as e:
+            log_api_error(provider.name, provider.model, prompt.version, e)
             raise TriageError(f"Error del proveedor {provider.name}: {type(e).__name__}: {e}") from e
 
         try:
@@ -106,7 +129,7 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
     moderation: off | output | both (por defecto, la variable MODERATION del .env, o "both").
     """
     start = time.perf_counter()  # latencia del servicio, para las ejecuciones que no llaman al LLM
-    moderation = moderation or os.getenv("MODERATION", "both")
+    moderation = resolve_moderation(moderation)
     if moderation not in MODERATION_MODES:
         raise TriageError(f"MODERATION inválido: {moderation!r}. Opciones: {', '.join(MODERATION_MODES)}")
     error, injection = check_input(query)

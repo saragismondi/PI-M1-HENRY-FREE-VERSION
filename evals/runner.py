@@ -4,6 +4,7 @@ Uso:
     python evals/runner.py                                  # todos los proveedores y prompts
     python evals/runner.py --provider groq --prompt v1 v2   # una parte
     python evals/runner.py --limit 4                        # prueba corta con 4 casos
+    python evals/runner.py --provider nvidia --moderation off --sleep 1.6   # gratis, bajo ~40 llamadas/min
 
 Score = exact match: porcentaje de casos donde la categoría predicha es igual a la esperada.
 Un caso que falla (error de API o contrato inválido tras los reintentos) cuenta como incorrecto.
@@ -29,7 +30,7 @@ from src.metrics import metrics_path  # noqa: E402
 from src.prompts import available_versions  # noqa: E402
 from src.providers import PROVIDERS  # noqa: E402
 from src.schemas import CATEGORIES  # noqa: E402
-from src.service import TriageError, triage  # noqa: E402
+from src.service import MODERATION_MODES, TriageError, calls_preview, triage  # noqa: E402
 
 DATASET = ROOT / "evals" / "dataset.jsonl"
 RESULTS_DIR = ROOT / "evals" / "results"
@@ -52,13 +53,14 @@ def read_metric_lines_since(start: int) -> list[dict]:
     return [json.loads(line) for line in lines if line.strip()]
 
 
-def run_one(provider: str, prompt: str, cases: list[dict], sleep_s: float) -> list[dict]:
+def run_one(provider: str, prompt: str, cases: list[dict], sleep_s: float,
+            moderation: str | None = None) -> list[dict]:
     results = []
     for i, case in enumerate(cases, 1):
         answer, output_flags = None, []
         try:
             # Sin caché: cada corrida tiene que medir llamadas reales.
-            result = triage(case["query"], provider, prompt, use_cache=False)
+            result = triage(case["query"], provider, prompt, use_cache=False, moderation=moderation)
             predicted, error = result.response.category, None
             answer = result.original_answer or result.response.answer
             output_flags = result.output_flags
@@ -127,9 +129,12 @@ def main() -> int:
     parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=list(PROVIDERS))
     parser.add_argument("--prompt", nargs="+", default=available_versions())
     parser.add_argument("--limit", type=int, default=None, help="Usar solo los primeros N casos.")
+    parser.add_argument("--moderation", choices=MODERATION_MODES, default=None,
+                        help="Moderador LLM: off, output o both (por defecto, MODERATION del .env, o both).")
     parser.add_argument("--sleep", type=float, default=0.0, help="Segundos de espera entre llamadas.")
     args = parser.parse_args()
 
+    print(calls_preview(args.provider, args.moderation))
     cases = load_dataset(DATASET, args.limit)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -139,7 +144,7 @@ def main() -> int:
         for prompt in args.prompt:
             print(f"\n== {provider} / {prompt} ({len(cases)} casos)")
             start = count_metric_lines()
-            results = run_one(provider, prompt, cases, args.sleep)
+            results = run_one(provider, prompt, cases, args.sleep, args.moderation)
             summary = summarize(provider, prompt, results, read_metric_lines_since(start))
             summaries.append(summary)
             detail_path = RESULTS_DIR / f"{stamp}_{provider}_{prompt}.jsonl"

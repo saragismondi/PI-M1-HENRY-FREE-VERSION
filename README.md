@@ -2,6 +2,13 @@
 
 Proyecto Integrador del Módulo 1 de AI Engineering (Henry).
 
+> **Versión gratuita (en curso).** Este repo parte de
+> [saragismondi/pi-m1-ia-engineer](https://github.com/saragismondi/pi-m1-ia-engineer) y busca correr todo con
+> proveedores gratis: se agregó NVIDIA (build.nvidia.com) como tercer proveedor y está planificada una prueba
+> con Jev (TypeSafe AI). Plan, métricas del proyecto base y estado de cada fase:
+> [docs/PLAN_PROVEEDORES_GRATUITOS.md](docs/PLAN_PROVEEDORES_GRATUITOS.md). Los resultados de evals de abajo
+> son los del proyecto base (Anthropic y Groq); NVIDIA todavía no se probó con llamadas reales.
+
 Nubbix es un SaaS para pymes de LATAM con unos 400 tickets diarios. Este servicio de línea de comandos
 recibe la consulta de un cliente en texto libre y devuelve un JSON validado con una respuesta propuesta,
 la categoría, la confianza y acciones sugeridas para el agente humano. **El servicio no ejecuta
@@ -24,8 +31,8 @@ reintenta hasta 3 veces y se le pasa al modelo el error concreto (`src/service.p
 Requisitos: Python 3.14 (es la versión con la que se probó) y al menos una clave de API.
 
 ```bash
-git clone https://github.com/saragismondi/pi-m1-ia-engineer.git
-cd pi-m1-ia-engineer
+git clone https://github.com/saragismondi/PI-M1-HENRY-FREE-VERSION.git
+cd PI-M1-HENRY-FREE-VERSION
 python -m venv .venv
 ```
 
@@ -51,6 +58,10 @@ Completar en `.env` las claves:
 
 - `ANTHROPIC_API_KEY`: console.anthropic.com. Requiere créditos prepagos.
 - `GROQ_API_KEY`: console.groq.com. Tiene plan gratuito con límites diarios.
+- `NVIDIA_API_KEY`: build.nvidia.com. Acceso gratis; límite reportado por usuarios de ~40 llamadas por minuto (sin número oficial).
+
+**Para no gastar nada:** `MODERATOR_PROVIDER=nvidia` (o `groq`), o `MODERATION=off`. Los runners de evals
+muestran antes de empezar qué proveedores van a llamar y cuáles son pagos.
 
 Con la configuración por defecto se necesitan **las dos claves**: Groq genera la respuesta y Haiku
 (Anthropic) modera. Para usar solo Groq, poné `MODERATOR_PROVIDER=groq` o `MODERATION=off`.
@@ -59,7 +70,9 @@ Variables principales (todas documentadas en `.env.example`):
 
 | Variable | Por defecto | Para qué |
 |---|---|---|
-| `DEFAULT_PROVIDER` | `groq` | Proveedor que responde: `anthropic` o `groq`. |
+| `DEFAULT_PROVIDER` | `groq` | Proveedor que responde: `anthropic`, `groq` o `nvidia`. |
+| `NVIDIA_MODEL` | `openai/gpt-oss-20b` | Modelo de NVIDIA (sin verificar; ver la prueba de humo). |
+| `GROQ_STRUCTURED` / `NVIDIA_STRUCTURED` | `json_schema` | Salida estructurada: `json_schema`, `json_object` u `off`. |
 | `ANTHROPIC_MODEL` / `GROQ_MODEL` | `claude-haiku-5-5` / `openai/gpt-oss-120b` | Modelo de cada proveedor. |
 | `MAX_TOKENS` | `500` | Tope de tokens de salida. |
 | `ANTHROPIC_THINKING` / `GROQ_REASONING_EFFORT` | `disabled` / `low` | Cuánto "razona" el modelo antes de responder (ver *Decisiones*). |
@@ -77,7 +90,7 @@ python -m src.main "no puedo entrar" --no-cache --moderation off
 
 Opciones:
 
-- `--provider`: `anthropic` o `groq`.
+- `--provider`: `anthropic`, `groq` o `nvidia`.
 - `--prompt`: `v1` o `v2`. Por defecto `v1`.
 - `--no-cache`: siempre llama al LLM.
 - `--moderation`: `off`, `output` o `both`.
@@ -137,7 +150,7 @@ consulta
 |---|---|
 | `src/main.py` | CLI. |
 | `src/service.py` | Une todo el flujo de arriba. |
-| `src/providers.py` | Interfaz común `LLMProvider` y los dos proveedores (Anthropic y Groq). |
+| `src/providers.py` | Interfaz común `LLMProvider`: Anthropic y un proveedor genérico compatible con OpenAI (Groq y NVIDIA). |
 | `src/schemas.py` | Contrato Pydantic. |
 | `src/prompts.py` | Carga `prompts/*.yaml`. |
 | `src/guardrails.py` | Guardrails por patrones (entrada y salida). |
@@ -147,6 +160,8 @@ consulta
 | `evals/runner.py` | Evals sobre el dataset. |
 | `evals/adversarial_runner.py` | Evals adversariales (bonus). |
 | `tests/test_guardrails.py` | Tests de los guardrails por patrones, sin LLM. |
+| `tests/test_providers.py` | Tests del proveedor genérico, del registro de errores de API y del aviso de pagos, sin red. |
+| `scripts/smoke_openai_compatible.py` | Prueba de humo: una llamada por modelo para validar formato y límites. |
 
 ## Context engineering: técnica elegida
 
@@ -289,6 +304,7 @@ Cada ejecución agrega al menos una línea a `data/metrics.jsonl`. El campo `eve
 | `cache` | La respuesta salió de la caché. | 0: no hubo llamada. |
 | `bloqueado_patron` | Un patrón de injection bloqueó la consulta. | 0: no hubo llamada. |
 | `bloqueado_moderador` | El moderador bloqueó la consulta. Su llamada queda aparte, como `llm`. | 0 en esta línea. |
+| `error_api` | La llamada falló después de los reintentos del SDK. Trae `status_code` (429 = límite) y `error`. | 0: no hubo respuesta. |
 
 En las líneas sin llamada, la latencia es la del servicio completo. Las líneas anteriores a este campo
 (hasta el 07/11/2026 a las 23:10 UTC) son todas llamadas a un LLM y no tienen `event`. Las consultas

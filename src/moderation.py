@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, ValidationError
 
-from src.metrics import log_request
+from src.metrics import log_api_error, log_request
 from src.providers import API_ERRORS, LLMProvider
 from src.schemas import extract_json, json_schema_for
 
@@ -76,6 +76,7 @@ def moderate(text: str, stage: str, provider: LLMProvider) -> ModerationResult:
     try:
         result = provider.complete(system, user, schema=json_schema_for(model))
     except API_ERRORS as e:
+        log_api_error(provider.name, provider.model, f"moderador_{stage}", e)
         return ModerationResult(flagged=True, reasons=[f"no_disponible:{type(e).__name__}"])
 
     try:

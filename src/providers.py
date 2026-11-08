@@ -1,4 +1,6 @@
-"""Clientes LLM: una interfaz común y dos proveedores (Anthropic y Groq).
+"""Clientes LLM: una interfaz común y tres proveedores (Anthropic, Groq y NVIDIA).
+
+Groq y NVIDIA comparten una sola clase (OpenAICompatibleProvider): solo cambian base_url, clave y modelo.
 
 El resto del proyecto solo llama a `provider.complete(system, user)`.
 Cambiar de proveedor no toca la lógica de negocio: solo cambia el nombre que se pasa a get_provider().
@@ -90,62 +92,127 @@ class AnthropicProvider(LLMProvider):
         )
 
 
-class GroqProvider(LLMProvider):
-    """Groq expone una API compatible con OpenAI: usamos el SDK de openai cambiando base_url."""
-    name = "groq"
-    BASE_URL = "https://api.groq.com/openai/v1"
+@dataclass(frozen=True)
+class OpenAICompatibleSpec:
+    """Lo que cambia entre proveedores con API compatible con OpenAI. Todo se lee del entorno."""
+    name: str
+    base_url: str
+    key_env: str
+    model_env: str
+    default_model: str
+    reasoning_env: str
+    default_reasoning: str
+    structured_env: str
+    default_structured: str
 
-    def __init__(self, model: str, max_tokens: int, temperature: float, reasoning_effort: str = "low"):
+
+# Groq: valores verificados en el proyecto base (07/11/2026), 418 llamadas reales.
+# NVIDIA (build.nvidia.com): base_url y nombre del modelo SIN verificar con una llamada real todavía.
+#   Se confirman en la fase 1 (scripts/smoke_openai_compatible.py) antes de correr evals.
+#   reasoning_effort vacío = no se manda (no todos los modelos de NVIDIA lo aceptan; sin verificar).
+SPECS = {
+    "groq": OpenAICompatibleSpec(
+        name="groq", base_url="https://api.groq.com/openai/v1", key_env="GROQ_API_KEY",
+        model_env="GROQ_MODEL", default_model="openai/gpt-oss-120b",
+        reasoning_env="GROQ_REASONING_EFFORT", default_reasoning="low",
+        structured_env="GROQ_STRUCTURED", default_structured="json_schema",
+    ),
+    "nvidia": OpenAICompatibleSpec(
+        name="nvidia", base_url="https://integrate.api.nvidia.com/v1", key_env="NVIDIA_API_KEY",
+        model_env="NVIDIA_MODEL", default_model="openai/gpt-oss-20b",
+        reasoning_env="NVIDIA_REASONING_EFFORT", default_reasoning="",
+        structured_env="NVIDIA_STRUCTURED", default_structured="json_schema",
+    ),
+}
+
+# Cómo se pide la salida estructurada:
+#   json_schema = el proveedor fuerza el schema del contrato (lo que usa Groq);
+#   json_object = solo fuerza "un JSON" (el schema va en el prompt y lo valida Pydantic);
+#   off         = no se pide nada (Pydantic y los reintentos del servicio hacen todo el trabajo).
+STRUCTURED_MODES = ("json_schema", "json_object", "off")
+
+
+class OpenAICompatibleProvider(LLMProvider):
+    """Cualquier API compatible con OpenAI (Groq, NVIDIA): mismo SDK, cambia base_url y la clave."""
+
+    def __init__(self, spec: OpenAICompatibleSpec, model: str, max_tokens: int, temperature: float,
+                 reasoning_effort: str = "", structured: str = "json_schema", base_url: str | None = None):
         super().__init__(model, max_tokens)
+        if structured not in STRUCTURED_MODES:
+            raise ValueError(f"{spec.structured_env} inválido: {structured!r}. Opciones: {', '.join(STRUCTURED_MODES)}")
+        self.name = spec.name
         self.temperature = temperature
         self.reasoning_effort = reasoning_effort
+        self.structured = structured
+        self.base_url = base_url or spec.base_url
         self.client = openai.OpenAI(
-            api_key=_require_env("GROQ_API_KEY"),
-            base_url=self.BASE_URL,
+            api_key=_require_env(spec.key_env),
+            base_url=self.base_url,
             max_retries=SDK_MAX_RETRIES,
             timeout=TIMEOUT_S,
         )
 
-    def complete(self, system: str, user: str, schema: dict | None = None) -> LLMResult:
-        schema = schema or output_json_schema()
-        start = time.perf_counter()
-        response = self.client.chat.completions.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            reasoning_effort=self.reasoning_effort,
-            response_format={"type": "json_schema", "json_schema": {
-                "name": "respuesta", "schema": schema, "strict": True}},
-            messages=[
+    def build_request(self, system: str, user: str, schema: dict) -> dict:
+        """Arma los parámetros de la llamada. Separado de complete() para poder testearlo sin red."""
+        request = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-        )
+        }
+        if self.reasoning_effort:
+            request["reasoning_effort"] = self.reasoning_effort
+        if self.structured == "json_schema":
+            request["response_format"] = {"type": "json_schema", "json_schema": {
+                "name": "respuesta", "schema": schema, "strict": True}}
+        elif self.structured == "json_object":
+            request["response_format"] = {"type": "json_object"}
+        return request
+
+    def complete(self, system: str, user: str, schema: dict | None = None) -> LLMResult:
+        schema = schema or output_json_schema()
+        start = time.perf_counter()
+        response = self.client.chat.completions.create(**self.build_request(system, user, schema))
         latency = time.perf_counter() - start
+        usage = response.usage
         return LLMResult(
             text=response.choices[0].message.content or "",
             provider=self.name,
             model=self.model,
-            prompt_tokens=response.usage.prompt_tokens,
-            completion_tokens=response.usage.completion_tokens,
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
             latency_s=latency,
             stop_reason=str(response.choices[0].finish_reason),
         )
 
 
-PROVIDERS = ("anthropic", "groq")
+PROVIDERS = ("anthropic", *SPECS)
+# Proveedores que cobran por token. Los runners avisan antes de llamarlos.
+PAID_PROVIDERS = {"anthropic"}
 
 
-def get_provider(name: str) -> LLMProvider:
-    """Crea el proveedor pedido leyendo modelo y parámetros del entorno (.env)."""
+def get_provider(name: str, model: str | None = None) -> LLMProvider:
+    """Crea el proveedor pedido leyendo modelo y parámetros del entorno (.env).
+
+    model: pisa el modelo del .env (lo usa la prueba de humo para recorrer varios modelos).
+    """
     max_tokens = int(os.getenv("MAX_TOKENS", "500"))
     if name == "anthropic":
-        return AnthropicProvider(os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), max_tokens,
+        return AnthropicProvider(model or os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), max_tokens,
                                  os.getenv("ANTHROPIC_THINKING", "disabled"))
-    if name == "groq":
-        temperature = float(os.getenv("TEMPERATURE", "0"))
-        return GroqProvider(os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), max_tokens, temperature,
-                            os.getenv("GROQ_REASONING_EFFORT", "low"))
+    if name in SPECS:
+        spec = SPECS[name]
+        return OpenAICompatibleProvider(
+            spec,
+            model=model or os.getenv(spec.model_env, spec.default_model),
+            max_tokens=max_tokens,
+            temperature=float(os.getenv("TEMPERATURE", "0")),
+            reasoning_effort=os.getenv(spec.reasoning_env, spec.default_reasoning).strip(),
+            structured=os.getenv(spec.structured_env, spec.default_structured).strip(),
+        )
     raise ValueError(f"Proveedor desconocido: {name!r}. Opciones: {', '.join(PROVIDERS)}")
 
 
