@@ -2,12 +2,13 @@
 
 Proyecto Integrador del Módulo 1 de AI Engineering (Henry).
 
-> **Versión gratuita (en curso).** Este repo parte de
-> [saragismondi/pi-m1-ia-engineer](https://github.com/saragismondi/pi-m1-ia-engineer) y busca correr todo con
-> proveedores gratis: se agregó NVIDIA (build.nvidia.com) como tercer proveedor y está planificada una prueba
-> con Jev (TypeSafe AI). Plan, métricas del proyecto base y estado de cada fase:
-> [docs/PLAN_PROVEEDORES_GRATUITOS.md](docs/PLAN_PROVEEDORES_GRATUITOS.md). Los resultados de evals de abajo
-> son los del proyecto base (Anthropic y Groq); NVIDIA todavía no se probó con llamadas reales.
+> **Versión gratuita: solo NVIDIA (build.nvidia.com).** Este repo parte de
+> [saragismondi/pi-m1-ia-engineer](https://github.com/saragismondi/pi-m1-ia-engineer) y corre todo el flujo
+> con `nvidia/nemotron-3.5-bolt-e4b`, generando y moderando, a costo 0: 100% en los 40 casos y 0 de 20 ataques
+> llegan al cliente. **Veredicto: sirve para aprendizaje, no para producción** (latencia de ~17 s por ticket,
+> moderador de entrada más débil que Haiku y límites del acceso gratis no publicados). Detalle y evidencia:
+> [docs/PLAN_PROVEEDORES_GRATUITOS.md](docs/PLAN_PROVEEDORES_GRATUITOS.md). Las tablas de resultados de más abajo
+> son las del proyecto base (Anthropic y Groq).
 
 Nubbix es un SaaS para pymes de LATAM con unos 400 tickets diarios. Este servicio de línea de comandos
 recibe la consulta de un cliente en texto libre y devuelve un JSON validado con una respuesta propuesta,
@@ -61,15 +62,16 @@ Completar en `.env` las claves (la versión gratuita usa solo proveedores con pl
 
 **Anthropic no se usa.** El código del proveedor sigue (lo usó el proyecto base y sus resultados están abajo),
 pero no se llama salvo que se pida con `--provider anthropic` o `MODERATOR_PROVIDER=anthropic`. Por defecto,
-Groq responde, NVIDIA modera y los runners solo corren `groq` y `nvidia`. Antes de empezar, los runners
+NVIDIA responde y modera, y los runners solo corren `nvidia`. Groq queda disponible con `--provider groq`. Antes de empezar, los runners
 muestran qué proveedores van a llamar y si alguno es pago.
 
 Variables principales (todas documentadas en `.env.example`):
 
 | Variable | Por defecto | Para qué |
 |---|---|---|
-| `DEFAULT_PROVIDER` | `groq` | Proveedor que responde: `groq` o `nvidia`. |
-| `NVIDIA_MODEL` | `openai/gpt-oss-20b` | Modelo de NVIDIA (sin verificar; ver la prueba de humo). |
+| `DEFAULT_PROVIDER` | `nvidia` | Proveedor que responde: `nvidia` o `groq`. |
+| `NVIDIA_MODEL` | `nvidia/nemotron-3.5-bolt-e4b` | Modelo de NVIDIA (el único de 6 que pasó la prueba de humo). |
+| `MODERATION_MAX_TOKENS` | `1000` | Tope de tokens solo del moderador. Con 500, Bolt fallaba en el 30% de las llamadas. |
 | `GROQ_STRUCTURED` / `NVIDIA_STRUCTURED` | `json_schema` | Salida estructurada: `json_schema`, `json_object` u `off`. |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` | Modelo de Groq. |
 | `MAX_TOKENS` | `500` | Tope de tokens de salida. |

@@ -238,6 +238,22 @@ Comando: `python evals/adversarial_runner.py --prompt v1 --moderation both --sle
 
 Alternativa paga más barata medida: moderar con Haiku cuesta unos 0,00016 USD por ticket (README del base).
 
+### Veredicto (decisión de Sara, 07/11/2026)
+
+**Sirve para aprendizaje, no para producción.**
+
+- **Para aprender:** el flujo completo (clasificación, moderación, guardrails, evals y métricas) corre a costo 0
+  con resultados medidos y comparables con la versión paga.
+- **Para producción, no**, por lo medido en esta sesión:
+  - latencia de ~17 s por ticket (hasta 3 llamadas de ~6 s);
+  - moderador de entrada más débil (0 de 4 paráfrasis frenadas, contra 3 de 4 con Haiku);
+  - errores de servicio por el tope de tokens (adv-08) y timeouts de varios modelos (fase 1);
+  - límites del acceso gratis no publicados por NVIDIA: no hay garantía de volumen ni de continuidad.
+
+**Fase 5 (Jev): no se hizo.** Podría mejorar el moderador (no genera texto, así que no se corta por tokens),
+pero el cupo gratis de 100 decisiones por día no alcanza para producción y el operador de jevmodel.io no está
+identificado. Queda como idea para explorar.
+
 ## 4. Fases
 
 | Fase | Qué | Llamadas | Estado |
@@ -247,8 +263,8 @@ Alternativa paga más barata medida: moderar con Haiku cuesta unos 0,00016 USD p
 | 2 | Proveedor genérico OpenAI-compatible (Groq y NVIDIA), `--moderation` en los runners, aviso de proveedores pagos, registro de errores de API (`error_api` con `status_code`) | 0 | **Hecho** (tests sin red) |
 | 3 | Evals con el modelo que pasó la fase 1 (Bolt), v1, `--moderation off`, `--sleep 1.6` | 40 | **Hecho**: 100%, 6 respuestas marcadas (ver 4c) |
 | 4 | Moderador en NVIDIA en lugar de Haiku; evals normales y adversariales | 113 + 119 + 41 | **Hecho**: con 500 tokens falla (4d); con 1.000, 100% y 0 ataques llegan al cliente (4e) |
-| 5 | Jev: categoría con probabilidades en los 40 casos (acierto y calibración vs `confidence` del LLM) y moderación en los 10 ataques | ~50 decisiones | Pendiente |
-| 6 | Decisión de Sara con la tabla de resultados | — | — |
+| 5 | Jev: categoría con probabilidades en los 40 casos (acierto y calibración vs `confidence` del LLM) y moderación en los 10 ataques | ~50 decisiones | **No se hizo** (ver veredicto) |
+| 6 | Decisión de Sara con la tabla de resultados | — | **Hecho**: aprendizaje sí, producción no |
 
 ## 5. Pregunta abierta para Henry
 
