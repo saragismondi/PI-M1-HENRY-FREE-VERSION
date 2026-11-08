@@ -54,43 +54,41 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Completar en `.env` las claves:
+Completar en `.env` las claves (la versión gratuita usa solo proveedores con plan gratis):
 
-- `ANTHROPIC_API_KEY`: console.anthropic.com. Requiere créditos prepagos.
 - `GROQ_API_KEY`: console.groq.com. Tiene plan gratuito con límites diarios.
 - `NVIDIA_API_KEY`: build.nvidia.com. Acceso gratis; límite reportado por usuarios de ~40 llamadas por minuto (sin número oficial).
 
-**Para no gastar nada:** `MODERATOR_PROVIDER=nvidia` (o `groq`), o `MODERATION=off`. Los runners de evals
-muestran antes de empezar qué proveedores van a llamar y cuáles son pagos.
-
-Con la configuración por defecto se necesitan **las dos claves**: Groq genera la respuesta y Haiku
-(Anthropic) modera. Para usar solo Groq, poné `MODERATOR_PROVIDER=groq` o `MODERATION=off`.
+**Anthropic no se usa.** El código del proveedor sigue (lo usó el proyecto base y sus resultados están abajo),
+pero no se llama salvo que se pida con `--provider anthropic` o `MODERATOR_PROVIDER=anthropic`. Por defecto,
+Groq responde, NVIDIA modera y los runners solo corren `groq` y `nvidia`. Antes de empezar, los runners
+muestran qué proveedores van a llamar y si alguno es pago.
 
 Variables principales (todas documentadas en `.env.example`):
 
 | Variable | Por defecto | Para qué |
 |---|---|---|
-| `DEFAULT_PROVIDER` | `groq` | Proveedor que responde: `anthropic`, `groq` o `nvidia`. |
+| `DEFAULT_PROVIDER` | `groq` | Proveedor que responde: `groq` o `nvidia`. |
 | `NVIDIA_MODEL` | `openai/gpt-oss-20b` | Modelo de NVIDIA (sin verificar; ver la prueba de humo). |
 | `GROQ_STRUCTURED` / `NVIDIA_STRUCTURED` | `json_schema` | Salida estructurada: `json_schema`, `json_object` u `off`. |
-| `ANTHROPIC_MODEL` / `GROQ_MODEL` | `claude-haiku-5-5` / `openai/gpt-oss-120b` | Modelo de cada proveedor. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Modelo de Groq. |
 | `MAX_TOKENS` | `500` | Tope de tokens de salida. |
-| `ANTHROPIC_THINKING` / `GROQ_REASONING_EFFORT` | `disabled` / `low` | Cuánto "razona" el modelo antes de responder (ver *Decisiones*). |
+| `GROQ_REASONING_EFFORT` / `NVIDIA_REASONING_EFFORT` | `low` / vacío | Cuánto "razona" el modelo antes de responder (ver *Decisiones*). Vacío = no se manda. |
 | `MODERATION` | `both` | Moderador LLM: `off`, `output` (solo la respuesta) o `both` (ticket y respuesta). |
 | `MODERATION_THRESHOLD` | `0.5` | Puntaje de riesgo (0 a 1) desde el cual el moderador marca. |
-| `MODERATOR_PROVIDER` | `anthropic` | Proveedor del moderador. |
+| `MODERATOR_PROVIDER` | `nvidia` | Proveedor del moderador: `groq` o `nvidia` (sin verificar todavía en NVIDIA). |
 
 ## Uso
 
 ```bash
 python -m src.main "me cobraron dos veces la suscripción de este mes"
-python -m src.main "no puedo entrar" --provider anthropic --prompt v1
+python -m src.main "no puedo entrar" --provider nvidia --prompt v1
 python -m src.main "no puedo entrar" --no-cache --moderation off
 ```
 
 Opciones:
 
-- `--provider`: `anthropic`, `groq` o `nvidia`.
+- `--provider`: `groq` o `nvidia` (`anthropic` existe en el código, pero es pago y no se usa).
 - `--prompt`: `v1` o `v2`. Por defecto `v1`.
 - `--no-cache`: siempre llama al LLM.
 - `--moderation`: `off`, `output` o `both`.
@@ -382,6 +380,8 @@ $ python -m src.main "no me llega el mail para recuperar la contraseña" --provi
 
 ## Mejoras pendientes en el testing
 
+- **Resuelto en la versión gratuita:** los runners aceptan `--moderation`, muestran antes de empezar qué
+  proveedores llaman y cuáles son pagos, y por defecto no usan Anthropic. Historia del problema original:
 - **El runner gasta en Anthropic aunque se pruebe con Groq.** Por defecto el moderador corre en Haiku
   (`MODERATION=both`, `MODERATOR_PROVIDER=anthropic`).
   - Qué pasó: en la prueba desde un clon limpio (07/11/2026) la idea era usar solo comandos gratis.

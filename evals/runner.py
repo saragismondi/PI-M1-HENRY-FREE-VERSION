@@ -1,7 +1,7 @@
 """Runner de evals: corre el dataset contra cada combinación proveedor x prompt y reporta el score.
 
 Uso:
-    python evals/runner.py                                  # todos los proveedores y prompts
+    python evals/runner.py                                  # proveedores gratuitos, todos los prompts
     python evals/runner.py --provider groq --prompt v1 v2   # una parte
     python evals/runner.py --limit 4                        # prueba corta con 4 casos
     python evals/runner.py --provider nvidia --moderation off --sleep 1.6   # gratis, bajo ~40 llamadas/min
@@ -28,7 +28,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 from src.metrics import metrics_path  # noqa: E402
 from src.prompts import available_versions  # noqa: E402
-from src.providers import PROVIDERS  # noqa: E402
+from src.providers import FREE_PROVIDERS, PROVIDERS  # noqa: E402
 from src.schemas import CATEGORIES  # noqa: E402
 from src.service import MODERATION_MODES, TriageError, calls_preview, triage  # noqa: E402
 
@@ -126,7 +126,8 @@ def main() -> int:
     load_dotenv(ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="Evalúa el triage contra evals/dataset.jsonl")
-    parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=list(PROVIDERS))
+    parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=list(FREE_PROVIDERS),
+                        help="Por defecto, solo los gratuitos (groq y nvidia).")
     parser.add_argument("--prompt", nargs="+", default=available_versions())
     parser.add_argument("--limit", type=int, default=None, help="Usar solo los primeros N casos.")
     parser.add_argument("--moderation", choices=MODERATION_MODES, default=None,

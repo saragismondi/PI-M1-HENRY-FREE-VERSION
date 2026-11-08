@@ -190,8 +190,11 @@ class OpenAICompatibleProvider(LLMProvider):
 
 
 PROVIDERS = ("anthropic", *SPECS)
-# Proveedores que cobran por token. Los runners avisan antes de llamarlos.
+# Proveedores que cobran por token. Los runners avisan antes de llamarlos y no los usan por defecto.
 PAID_PROVIDERS = {"anthropic"}
+# Versión gratuita: Anthropic sigue en el código (lo usó el proyecto base), pero no se llama salvo que
+# se pida explícitamente con --provider anthropic o MODERATOR_PROVIDER=anthropic.
+FREE_PROVIDERS = tuple(p for p in PROVIDERS if p not in PAID_PROVIDERS)
 
 
 def get_provider(name: str, model: str | None = None) -> LLMProvider:

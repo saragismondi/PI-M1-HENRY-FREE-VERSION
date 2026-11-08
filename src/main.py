@@ -2,7 +2,7 @@
 
 Uso:
     python -m src.main "me cobraron dos veces la suscripción"
-    python -m src.main "no puedo entrar" --provider anthropic --prompt v1
+    python -m src.main "no puedo entrar" --provider nvidia --prompt v1
     python -m src.main "no puedo entrar" --no-cache
 
 Salida: JSON con {answer, confidence, category, actions} en stdout (código de salida 0).

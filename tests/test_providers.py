@@ -20,8 +20,8 @@ import openai  # noqa: E402
 
 from src import service  # noqa: E402
 from src.metrics import estimate_cost_usd  # noqa: E402
-from src.providers import (PAID_PROVIDERS, PROVIDERS, SPECS, OpenAICompatibleProvider,  # noqa: E402
-                           get_provider)
+from src.providers import (FREE_PROVIDERS, PAID_PROVIDERS, PROVIDERS, SPECS,  # noqa: E402
+                           OpenAICompatibleProvider, get_provider)
 from src.schemas import output_json_schema  # noqa: E402
 
 VALID = json.dumps({"answer": "Vamos a revisar el cobro.", "confidence": 0.9, "category": "billing",
@@ -196,6 +196,24 @@ def test_triage_completo_con_nvidia_falso():
         service.get_provider = original
     assert result.response.category == "billing"
     assert len(lines) == 1 and lines[0]["event"] == "llm" and lines[0]["cost_usd"] == 0.0
+
+
+# --- Versión gratuita: Anthropic no se usa por defecto -------------------------------
+
+def test_moderador_por_defecto_es_nvidia():
+    with env(MODERATOR_PROVIDER=None):
+        assert service.moderator_provider() == "nvidia"
+        assert "anthropic" not in service.calls_preview(["groq"], "both")
+
+
+def test_runners_por_defecto_solo_proveedores_gratis():
+    assert set(FREE_PROVIDERS) == {"groq", "nvidia"}
+
+
+def test_env_example_no_tiene_anthropic():
+    text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "ANTHROPIC" not in text.upper().replace("ANTHROPIC NO SE USA", "")
+    assert "MODERATOR_PROVIDER=nvidia" in text
 
 
 # --- Aviso previo de los runners ---------------------------------------------------

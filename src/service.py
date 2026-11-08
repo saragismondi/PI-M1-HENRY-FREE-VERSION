@@ -26,6 +26,14 @@ MODERATION_MODES = ("off", "output", "both")
 MAX_ATTEMPTS = 3
 
 
+# Versión gratuita: el moderador por defecto es NVIDIA (en el proyecto base era Haiku, que es pago).
+DEFAULT_MODERATOR = "nvidia"
+
+
+def moderator_provider() -> str:
+    return os.getenv("MODERATOR_PROVIDER", DEFAULT_MODERATOR)
+
+
 def resolve_moderation(moderation: str | None) -> str:
     """El modo pedido, o MODERATION del .env, o "both"."""
     return moderation or os.getenv("MODERATION", "both")
@@ -40,7 +48,7 @@ def calls_preview(providers: list[str], moderation: str | None) -> str:
     moderation = resolve_moderation(moderation)
     used = {p: "responde" for p in providers}
     if moderation != "off":
-        mod = os.getenv("MODERATOR_PROVIDER", "anthropic")
+        mod = moderator_provider()
         used[mod] = (used[mod] + " y modera") if mod in used else "modera"
     lines = [f"Moderación: {moderation}"]
     for name, role in used.items():
@@ -142,9 +150,9 @@ def triage(query: str, provider_name: str, prompt_version: str = "v1",
 
     try:
         provider = get_provider(provider_name)
-        # El moderador puede ser otro proveedor (por defecto Haiku): así no consume el cupo diario
-        # del plan gratis de Groq, que se agotó cuando el moderador corría también en Groq.
-        moderator = get_provider(os.getenv("MODERATOR_PROVIDER", "anthropic")) if moderation != "off" else None
+        # El moderador corre en otro proveedor (por defecto NVIDIA): en el proyecto base, con el
+        # moderador también en Groq, se agotó el cupo diario del plan gratis de Groq.
+        moderator = get_provider(moderator_provider()) if moderation != "off" else None
         prompt = load_prompt(prompt_version)
     except ValueError as e:  # proveedor o prompt inexistente, o falta una clave
         raise TriageError(str(e)) from e
