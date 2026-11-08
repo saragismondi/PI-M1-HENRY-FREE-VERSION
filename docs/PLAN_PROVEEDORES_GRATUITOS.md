@@ -110,6 +110,37 @@ no se verificó con una llamada aparte.
    cuál acepta cada uno) o subir `MAX_TOKENS` (en el proyecto base se descartó subirlo).
 3. Para los timeouts: reintentar más tarde, o subir `TIMEOUT_S`.
 
+## 4c. Resultados de la fase 3 (07/11/2026, verificado)
+
+Comando: `python evals/runner.py --provider nvidia --prompt v1 --moderation off --sleep 1.6`, con
+`NVIDIA_MODEL=nvidia/nemotron-3.5-bolt-e4b`. Fuentes: `evals/results/2026-11-07_2230_*` y las 40 líneas
+correspondientes de `data/metrics.jsonl`.
+
+| | Bolt (NVIDIA), v1, sin moderador | Groq gpt-oss-120b, v1 (base, `1940`) | Haiku, v1 (base, `1739`) |
+|---|---|---|---|
+| Score global | **100% (40/40)** | 98% (39/40) | 98% (39/40) |
+| Casos claros | 100% (24/24) | 100% (24/24) | 100% (24/24) |
+| Fallidos / reintentos | 0 / 0 | 0 / 0 | 0 / 0 |
+| Respuestas marcadas por el guardrail de salida | **6** | 3 | 0 |
+| Latencia promedio por llamada | 5,28 s (mediana 5,20; máx. 7,32) | 1,21 s* | 1,31 s* |
+| Tokens de salida por llamada | promedio 372, **máximo 473** (tope 500) | — | — |
+| Costo | 0 | 0 | 0,015 USD |
+| 429 | ninguno | — | — |
+
+\* Las corridas del proyecto base tenían el moderador prendido, así que su latencia y sus tokens incluyen
+esas llamadas: **no son directamente comparables** con esta corrida.
+
+**Los 6 marcados:** todos por el patrón `promesa:plazo` (`src/guardrails.py`, línea 34), por la frase
+"de inmediato" (por ejemplo, "Revisaremos tu cuenta de inmediato"). Casos: bil-10, tec-01, tec-02, tec-05,
+tec-10 y acc-09. Con el guardrail activo, esos 6 clientes reciben la respuesta genérica en lugar de la del
+modelo. Que "de inmediato" sea o no una promesa indebida es una decisión de criterio, no una medición.
+
+**Límites de esta medición:**
+- 40 casos es un dataset chico; los dos casos ambiguos que fallaron en el base (acc-05, oth-06) acertaron acá,
+  pero con una sola corrida no se puede separar acierto de suerte.
+- Margen de tokens: el máximo fue 473 de 500. Un ticket más largo podría cortar el JSON.
+- Sin moderador LLM: falta la fase 4.
+
 ## 4. Fases
 
 | Fase | Qué | Llamadas | Estado |
@@ -117,7 +148,7 @@ no se verificó con una llamada aparte.
 | 0 | Clave de NVIDIA (la crea Sara en build.nvidia.com, desde Mistral Large 4) y, opcional, de Jev | 0 | NVIDIA: **hecho**. Jev: pendiente |
 | 1 | Prueba de humo: 1 llamada por modelo candidato (`scripts/smoke_openai_compatible.py`) | 6 (+1 diagnóstico) | **Hecho**: 1 de 6 OK (ver 4b) |
 | 2 | Proveedor genérico OpenAI-compatible (Groq y NVIDIA), `--moderation` en los runners, aviso de proveedores pagos, registro de errores de API (`error_api` con `status_code`) | 0 | **Hecho** (tests sin red) |
-| 3 | Evals con los 2 mejores modelos, v1, `--moderation off`, `--sleep 1.6` | ~80 | Pendiente |
+| 3 | Evals con el modelo que pasó la fase 1 (Bolt), v1, `--moderation off`, `--sleep 1.6` | 40 | **Hecho**: 100%, 6 respuestas marcadas (ver 4c) |
 | 4 | Moderador en NVIDIA en lugar de Haiku; evals normales y adversariales | ~200 | Pendiente |
 | 5 | Jev: categoría con probabilidades en los 40 casos (acierto y calibración vs `confidence` del LLM) y moderación en los 10 ataques | ~50 decisiones | Pendiente |
 | 6 | Decisión de Sara con la tabla de resultados | — | — |
