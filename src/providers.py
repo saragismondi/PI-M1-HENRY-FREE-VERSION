@@ -107,8 +107,9 @@ class OpenAICompatibleSpec:
 
 
 # Groq: valores verificados en el proyecto base (07/11/2026), 418 llamadas reales.
-# NVIDIA (build.nvidia.com): base_url y nombre del modelo SIN verificar con una llamada real todavía.
-#   Se confirman en la fase 1 (scripts/smoke_openai_compatible.py) antes de correr evals.
+# NVIDIA (build.nvidia.com): el endpoint https://integrate.api.nvidia.com/v1/chat/completions, el header
+#   "Authorization: Bearer $NVIDIA_API_KEY" y el ID mistralai/mistral-large-4-1t-a52b figuran en la página
+#   oficial de Mistral Large 4 (vista el 07/11/2026). Todavía SIN probar con una llamada real: fase 1.
 #   reasoning_effort vacío = no se manda (no todos los modelos de NVIDIA lo aceptan; sin verificar).
 SPECS = {
     "groq": OpenAICompatibleSpec(

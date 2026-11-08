@@ -36,6 +36,36 @@ Fuente: `data/metrics.jsonl` del proyecto base (1.186 líneas, 1.184 llamadas a 
   créditos ni cupo diario publicado.
 - **Consecuencia:** el pico medido (42/min) supera 40. Con `--sleep 1.6` el runner queda en ~37/min.
 
+## 2b. Ficha de Mistral Large 4 en NVIDIA (vista en build.nvidia.com, 07/11/2026)
+
+Fuente: página del modelo en build.nvidia.com (pestaña Build, ejemplo de Python y "Specifications"), captura
+de Sara. **Visto en la página oficial, no probado con una llamada todavía.**
+
+| Dato | Valor en la página | Qué implica para el proyecto |
+|---|---|---|
+| Endpoint | `https://integrate.api.nvidia.com/v1/chat/completions` | Coincide con `SPECS["nvidia"].base_url` (`.../v1`); el SDK de openai agrega `/chat/completions`. |
+| ID del modelo | `mistralai/mistral-large-4-1t-a52b` | Es el valor para `NVIDIA_MODEL`. |
+| Autenticación | Header `Authorization: Bearer $NVIDIA_API_KEY` | La clave se lee del entorno; nunca va escrita en el código ni en el repo. |
+| Proveedor | Mistral AI (servido por NVIDIA) | El modelo es de Mistral; NVIDIA lo hospeda. |
+| Arquitectura | 1T parámetros totales / 52B activos (MoE). La ficha dice "Parameters 1050B". | Modelo grande: puede ser más lento que gpt-oss. Se mide en la fase 1. |
+| Contexto | 262K tokens | Muy por encima de lo que usa un ticket (máximo medido: 2.162 tokens de entrada). |
+| Capacidades declaradas | texto e imagen, razonamiento, function calling, **structured outputs** | `NVIDIA_STRUCTURED=json_schema` debería funcionar (sin verificar). |
+| Etiquetas | chat, multimodal, reasoning, tool use, **free endpoint** | Gratis en el acceso de prueba. |
+| Ejemplo oficial | `max_tokens: 4096`, `temperature: 0.5`, `reasoning_effort: "high"` | **No copiar esos valores** (ver abajo). |
+
+### Por qué no usamos los valores del ejemplo (seguridad y costo)
+
+- **`reasoning_effort: "high"`:** en el proyecto base, el razonamiento contaba dentro de `MAX_TOKENS` y cortaba
+  el JSON (17 respuestas inválidas con exactamente 500 tokens; README, "Decisiones técnicas"). Con
+  `MAX_TOKENS=500` usamos `NVIDIA_REASONING_EFFORT=low`. Si el modelo no acepta el parámetro, se deja vacío.
+- **`max_tokens: 4096`:** más tokens por llamada = más carga sobre el límite gratis y respuestas más largas de
+  lo que el contrato necesita (máximo medido: 288 tokens de salida). Se mantiene `MAX_TOKENS=500`.
+- **`temperature: 0.5`:** usamos 0 para que la clasificación sea estable entre corridas.
+- **Imágenes en base64:** el ejemplo manda imágenes; el triage solo manda texto. No se habilita entrada de
+  imágenes (menos superficie para inyecciones ocultas en imágenes).
+- **La clave:** solo en `.env` (ignorado por git, `.gitignore` línea 6). No pegarla en el chat, en capturas
+  ni en issues.
+
 ## 3. Jev (TypeSafe AI)
 
 - **Verificado (docs.typesafe.ai, jevmodel.io/docs):** no genera texto. Responde preguntas tipadas
@@ -51,7 +81,7 @@ Fuente: `data/metrics.jsonl` del proyecto base (1.186 líneas, 1.184 llamadas a 
 
 | Fase | Qué | Llamadas | Estado |
 |---|---|---|---|
-| 0 | Clave de NVIDIA (la crea Sara en build.nvidia.com) y, opcional, de Jev | 0 | **Pendiente (Sara)** |
+| 0 | Clave de NVIDIA (la crea Sara en build.nvidia.com, desde Mistral Large 4) y, opcional, de Jev | 0 | **En curso (Sara)** |
 | 1 | Prueba de humo: 1 llamada por modelo candidato (`scripts/smoke_openai_compatible.py`) | ~7 | Script listo |
 | 2 | Proveedor genérico OpenAI-compatible (Groq y NVIDIA), `--moderation` en los runners, aviso de proveedores pagos, registro de errores de API (`error_api` con `status_code`) | 0 | **Hecho** (tests sin red) |
 | 3 | Evals con los 2 mejores modelos, v1, `--moderation off`, `--sleep 1.6` | ~80 | Pendiente |
