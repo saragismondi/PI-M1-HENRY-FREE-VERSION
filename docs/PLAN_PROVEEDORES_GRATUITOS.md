@@ -141,6 +141,42 @@ modelo. Que "de inmediato" sea o no una promesa indebida es una decisión de cri
 - Margen de tokens: el máximo fue 473 de 500. Un ticket más largo podría cortar el JSON.
 - Sin moderador LLM: falta la fase 4.
 
+## 4d. Versión solo NVIDIA: Bolt genera y modera (07/11/2026, verificado)
+
+Decisión de Sara: no usar Groq (su cupo del día se usó en el proyecto base) ni Anthropic (pago). Límite de
+tiempo: entre 30 y 60 minutos; si no hay resultados concretos, se concluye que conviene pagar una API key.
+
+Cambios: `DEFAULT_PROVIDER=nvidia`, `MODERATOR_PROVIDER=nvidia`; la CLI y los runners usan NVIDIA por defecto.
+
+Comando: `python evals/runner.py --prompt v1 --moderation both --sleep 1.0` (22:54 a 23:06, 12 minutos).
+Fuentes: `evals/results/2026-11-07_2254_*` y 113 líneas nuevas de `data/metrics.jsonl`.
+
+| | Resultado |
+|---|---|
+| Score global | 92% (37/40); claros 96% (23/24) |
+| Generación (Bolt respondiendo) | **37/37 respuestas válidas**, todas `stop` |
+| Moderador (Bolt moderando) | **22 de 73 llamadas inválidas**: las 22 con 500 tokens de salida y `stop=length` |
+| Casos mal clasificados | bil-01, bil-10, acc-08: el moderador de entrada no respondió un JSON válido, el ticket se marcó por seguridad y salió como `other` sin llamar al generador |
+| Respuestas reemplazadas por el guardrail de salida | 23: 19 por `moderador:respuesta_invalida` y 4 por `promesa:plazo` |
+| 429 / errores de API | ninguno |
+| Latencia promedio | 5,86 s por llamada (moderador: 6,11 s); hasta 3 llamadas por ticket |
+| Costo | 0 |
+
+**Causa:** el mismo problema de la fase 1. Bolt razona antes de responder y, en el moderador, el razonamiento
+consumió los 500 tokens en 22 llamadas. Por diseño del proyecto base, si el moderador falla, el ticket se
+trata como marcado (no sale nada automático). El resultado es seguro, pero inútil: casi la mitad de las
+respuestas llega al cliente como respuesta genérica.
+
+**Adversariales: no se corrieron.** Con el moderador fallando en un 30% de las llamadas, el resultado mediría
+esa falla y no la defensa.
+
+### Conclusión con los datos (07/11/2026, 23:07)
+
+- **Generar con NVIDIA gratis funciona:** 77 respuestas válidas de 77 entre las fases 3 y 4, sin un solo 429.
+- **Moderar con NVIDIA gratis, tal como está, no funciona:** 30% de llamadas inválidas.
+- El límite de llamadas **no** fue el problema en ninguna fase. El problema fue el razonamiento de los modelos
+  frente al tope de 500 tokens.
+
 ## 4. Fases
 
 | Fase | Qué | Llamadas | Estado |
@@ -149,7 +185,7 @@ modelo. Que "de inmediato" sea o no una promesa indebida es una decisión de cri
 | 1 | Prueba de humo: 1 llamada por modelo candidato (`scripts/smoke_openai_compatible.py`) | 6 (+1 diagnóstico) | **Hecho**: 1 de 6 OK (ver 4b) |
 | 2 | Proveedor genérico OpenAI-compatible (Groq y NVIDIA), `--moderation` en los runners, aviso de proveedores pagos, registro de errores de API (`error_api` con `status_code`) | 0 | **Hecho** (tests sin red) |
 | 3 | Evals con el modelo que pasó la fase 1 (Bolt), v1, `--moderation off`, `--sleep 1.6` | 40 | **Hecho**: 100%, 6 respuestas marcadas (ver 4c) |
-| 4 | Moderador en NVIDIA en lugar de Haiku; evals normales y adversariales | ~200 | Pendiente |
+| 4 | Moderador en NVIDIA en lugar de Haiku; evals normales y adversariales | 113 | **Hecho, con falla**: 92%, el moderador falla en 22 de 73 llamadas (ver 4d) |
 | 5 | Jev: categoría con probabilidades en los 40 casos (acierto y calibración vs `confidence` del LLM) y moderación en los 10 ataques | ~50 decisiones | Pendiente |
 | 6 | Decisión de Sara con la tabla de resultados | — | — |
 

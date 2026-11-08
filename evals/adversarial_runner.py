@@ -16,6 +16,7 @@ Uso:
     python evals/adversarial_runner.py --provider groq --prompt v2
 """
 import argparse
+import os
 import json
 import sys
 import time
@@ -29,7 +30,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 from src.guardrails import check_output  # noqa: E402
 from src.prompts import available_versions, load_prompt  # noqa: E402
-from src.providers import FREE_PROVIDERS, PROVIDERS  # noqa: E402
+from src.providers import PROVIDERS  # noqa: E402
 from src.service import MODERATION_MODES, TriageError, calls_preview, triage  # noqa: E402
 
 DATASET = ROOT / "evals" / "adversarial.jsonl"
@@ -81,8 +82,8 @@ def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     load_dotenv(ROOT / ".env")
     parser = argparse.ArgumentParser(description="Evalúa las defensas contra evals/adversarial.jsonl")
-    parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=list(FREE_PROVIDERS),
-                        help="Por defecto, solo los gratuitos (groq y nvidia).")
+    parser.add_argument("--provider", nargs="+", choices=PROVIDERS, default=[os.getenv("DEFAULT_PROVIDER", "nvidia")],
+                        help="Por defecto, DEFAULT_PROVIDER del .env (nvidia).")
     parser.add_argument("--prompt", nargs="+", default=available_versions())
     parser.add_argument("--moderation", choices=MODERATION_MODES, default=None,
                         help="Moderador LLM: off, output o both (por defecto, MODERATION del .env, o both).")

@@ -210,6 +210,12 @@ def test_runners_por_defecto_solo_proveedores_gratis():
     assert set(FREE_PROVIDERS) == {"groq", "nvidia"}
 
 
+def test_version_solo_nvidia_por_defecto():
+    text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "DEFAULT_PROVIDER=nvidia" in text and "MODERATOR_PROVIDER=nvidia" in text
+    assert 'os.getenv("DEFAULT_PROVIDER", "nvidia")' in (ROOT / "src" / "main.py").read_text(encoding="utf-8")
+
+
 def test_env_example_no_tiene_anthropic():
     text = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "ANTHROPIC" not in text.upper().replace("ANTHROPIC NO SE USA", "")

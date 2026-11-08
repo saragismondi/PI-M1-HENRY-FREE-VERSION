@@ -39,7 +39,7 @@ def main() -> int:
 
     args = build_parser().parse_args()
     query = " ".join(args.query)
-    provider = args.provider or os.getenv("DEFAULT_PROVIDER", "groq")
+    provider = args.provider or os.getenv("DEFAULT_PROVIDER", "nvidia")
 
     try:
         result = triage(query, provider, args.prompt, use_cache=not args.no_cache,
